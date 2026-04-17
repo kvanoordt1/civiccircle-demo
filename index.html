@@ -1033,7 +1033,7 @@ select.form-input { background: var(--white); }
 
 <!-- TOP BANNER -->
 <div class="topbar">
-  <strong>CivicCircle V15</strong> &mdash; Multi-precinct MVP · Ottawa County, Michigan · Dark/live emails + Flag-and-review + Audit log <span style="color:var(--gold)">NEW</span> &nbsp;·&nbsp; <strong>Kurt VanOordt</strong>, Spring Lake Precinct 5 Delegate
+  <strong>CivicCircle V16</strong> &mdash; Multi-precinct MVP · Ottawa County, Michigan · Full AI demo data — all features live <span style="color:var(--gold)">NEW</span> &nbsp;·&nbsp; <strong>Kurt VanOordt</strong>, Spring Lake Precinct 5 Delegate
 </div>
 
 <!-- NAV -->
@@ -1281,13 +1281,17 @@ select.form-input { background: var(--white); }
 
 <!-- RELAY MODAL -->
 <div class="modal-overlay" id="relay-modal">
-  <div class="modal-box">
+  <div class="modal-box" style="max-width:560px">
     <div class="modal-title">Forward Issue to Official</div>
     <div style="font-size:13px;color:var(--muted);margin-bottom:14px" id="relay-issue-preview"></div>
     <label class="form-label">Select Official</label>
-    <select class="form-input" id="relay-official-select"></select>
-    <label class="form-label">Add a Note (optional)</label>
-    <textarea class="msg-ta" id="relay-note" placeholder="Any context for the official…" style="min-height:70px"></textarea>
+    <select class="form-input" id="relay-official-select" onchange="clearRelayDraft()"></select>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <label class="form-label" style="margin-bottom:0">Draft Email</label>
+      <button class="btn btn-ghost btn-sm" onclick="generateRelayDraft()" id="relay-draft-btn">✦ Generate AI Draft</button>
+    </div>
+    <textarea class="msg-ta" id="relay-note" placeholder="Click 'Generate AI Draft' above, or type your own message to the official…" style="min-height:120px"></textarea>
+    <div id="relay-draft-note" style="display:none;font-size:11px;color:var(--muted);margin-top:4px;font-style:italic">✦ AI draft generated — review and edit before forwarding.</div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeRelayModal()">Cancel</button>
       <button class="btn btn-primary" onclick="confirmRelay()">Forward Issue</button>
@@ -3177,15 +3181,15 @@ function renderCalendar(meetings) {
 }
 
 async function getMeetingSummary(id) {
-  const m = MEETINGS.find(x=>x.id===id);
   const el = document.getElementById('ai-meeting-'+id);
+  if (!el) return;
   if (aiCache['meeting-'+id]) { el.innerHTML = aiCache['meeting-'+id]; return; }
-  const p = PRECINCTS.find(x=>x.id===currentPrecinct);
-  const twp = GEO.townships.find(t=>t.id===p.township);
   el.innerHTML = `<div class="ai-box"><span class="loading-text">Summarizing agenda…</span></div>`;
-  const prompt = `You are a nonpartisan civic information assistant for ${twp?twp.name:''} ${p.name}, Ottawa County, Michigan. Summarize this public meeting agenda in plain language for an everyday resident. 3-5 sentences. Factual and neutral. Note if there is a public comment period.\n\nMeeting: ${m.title}\nDate: ${m.mo} ${m.d}, 2026 at ${m.time}\nLocation: ${m.loc}\nAgenda: ${m.agenda}`;
-  const raw = await callAnthropicAPI(prompt, 500);
-  const html = `<div class="ai-label"><div class="ai-dot"></div>AI Agenda Summary</div><div class="ai-box">${raw}</div>`;
+
+  await new Promise(r => setTimeout(r, 700 + Math.random() * 500));
+
+  const summary = DEMO_MEETING_SUMMARIES[id] || 'This meeting covers regular public business. Residents are welcome to attend and speak during the public comment period if one is scheduled.';
+  const html = `<div class="ai-label"><div class="ai-dot"></div>AI Agenda Summary</div><div class="ai-box">${summary}</div>`;
   el.innerHTML = html;
   aiCache['meeting-'+id] = html;
 }
@@ -3376,44 +3380,30 @@ async function getOfficeExplainer(officeId) {
 
   el.innerHTML = `<div class="card" style="margin-bottom:10px"><div class="ai-box"><span class="loading-text">Explaining this office in plain language…</span></div></div>`;
 
-  const p = PRECINCTS.find(x=>x.id===currentPrecinct);
-  const twp = GEO.townships.find(t=>t&&p&&t.id===p.township);
-  const prompt = `You are a nonpartisan civic information tool. Explain what the elected office of "${office.title}" does in plain language for an everyday resident of ${twp?twp.name:''}, Ottawa County, Michigan.
+  // Simulate API delay
+  await new Promise(r => setTimeout(r, 700 + Math.random() * 500));
 
-Do NOT discuss any candidates. Do NOT make any recommendations. Do NOT use political language.
-
-Explain only: what powers this office holds, what decisions it makes, how it affects residents day-to-day, how often they meet, and what term length it carries.
-
-Office facts:
-- Body: ${office.body}
-- Term: ${office.term_years} years
-- Seats: ${office.seats}
-- Meets: ${office.meeting_freq}
-- Powers: ${office.powers}
-- Compensation: ${office.salary_note}
-
-Respond with exactly these four labeled sections, each 1–3 plain sentences:
-WHAT THIS OFFICE DOES:
-DECISIONS IT MAKES:
-HOW IT AFFECTS YOUR DAILY LIFE:
-TERM AND COMPENSATION:`;
-
-  const raw = await callAnthropicAPI(prompt, 700);
+  // Pull directly from demo data — no routing ambiguity
   const fields = [
-    { key:'WHAT THIS OFFICE DOES', label:'What This Office Does' },
-    { key:'DECISIONS IT MAKES', label:'Decisions It Makes' },
-    { key:'HOW IT AFFECTS YOUR DAILY LIFE', label:'How It Affects Your Daily Life' },
-    { key:'TERM AND COMPENSATION', label:'Term and Compensation' },
+    { key:'What This Office Does',      label:'What This Office Does' },
+    { key:'Decisions It Makes',         label:'Decisions It Makes' },
+    { key:'How It Affects Your Daily Life', label:'How It Affects Your Daily Life' },
+    { key:'Term and Compensation',      label:'Term and Compensation' },
   ];
+
+  const data = DEMO_OFFICE_EXPLAINERS[officeId] || {
+    'What This Office Does':          'This elected official serves on a local governing board and votes on budgets, ordinances, and public policy that affect everyday life in the community.',
+    'Decisions It Makes':             'The officeholder votes on spending priorities, local regulations, zoning rules, and public service delivery for the jurisdiction.',
+    'How It Affects Your Daily Life': 'Decisions made in this office affect road maintenance, local tax rates, what can be built near your home, and the quality of public services in your neighborhood.',
+    'Term and Compensation':          'This is an elected part-time position. Term length and stipend are set by the governing board.',
+  };
+
   let html = `<div class="card" style="margin-bottom:10px;border-left:3px solid var(--navy)">
     <div class="ai-label"><div class="ai-dot"></div>What does a ${office.title} do? — AI plain-language explanation · This office only, not any candidate</div>
     <div class="ai-box">`;
-  for (let i=0; i<fields.length; i++) {
-    const f=fields[i], next=i+1<fields.length?fields[i+1].key:null;
-    const re=new RegExp(f.key+':\\s*([\\s\\S]*?)'+(next?'(?='+next+')':'$'),'i');
-    const m=raw.match(re);
-    html += `<div class="ai-field"><div class="ai-field-label">${f.label}</div><div class="ai-field-val">${m?m[1].trim():'—'}</div></div>`;
-  }
+  fields.forEach(f => {
+    html += `<div class="ai-field"><div class="ai-field-label">${f.label}</div><div class="ai-field-val">${data[f.key] || '—'}</div></div>`;
+  });
   html += `<div style="font-size:11px;color:var(--muted);margin-top:10px;border-top:1px solid var(--mg);padding-top:8px">
     Source: ${office.source_label} · This explanation covers the office only — CivicCircle does not evaluate any candidate
   </div></div></div>`;
@@ -3471,13 +3461,34 @@ async function getBallotExplanation(id) {
   if (!el) return;
   if (aiCache['ballot-'+id]) { el.innerHTML = aiCache['ballot-'+id]; return; }
   el.innerHTML = '<div class="ai-box"><span class="loading-text">Generating nonpartisan breakdown…</span></div>';
-  const p = PRECINCTS.find(x=>x.id===currentPrecinct);
-  const twp = GEO.townships.find(t=>t&&p&&t.id===p.township);
-  const prompt = `You are a nonpartisan civic information tool for ${twp?twp.name:''} ${p?p.name:''}, Ottawa County, Michigan. Provide a structured plain-language breakdown of this ballot item. Never tell citizens how to vote. 1-3 sentences per section.\n\nBallot Item: "${item.title}" — ${item.sub} — ${item.desc}\n\nRespond ONLY with these four labeled sections:\nWHAT IT DOES:\nWHO IT IMPACTS:\nFINANCIAL IMPLICATIONS:\nKEY CONSIDERATIONS:`;
-  const raw = await callAnthropicAPI(prompt, 800);
-  const result = formatAIBallot(raw);
+
+  await new Promise(r => setTimeout(r, 700 + Math.random() * 500));
+
+  const fields = DEMO_BALLOT_BREAKDOWNS[id] || {
+    'What It Does':           'This ballot measure asks voters to make a decision about local government policy or funding.',
+    'Who It Impacts':         'All eligible voters in the applicable jurisdiction may vote on this measure. Property owners may see direct financial effects.',
+    'Financial Implications': 'Fiscal impact depends on the specific rate and the local property tax base. Details are available from the county clerk.',
+    'Key Considerations':     'This is a factual summary only. CivicCircle does not recommend how to vote on any ballot item.',
+  };
+
+  const result = formatAIBallotDirect(fields);
   el.innerHTML = result;
   aiCache['ballot-'+id] = result;
+}
+
+function formatAIBallotDirect(fields) {
+  const labels = [
+    { key:'What It Does',           label:'What It Does' },
+    { key:'Who It Impacts',         label:'Who It Impacts' },
+    { key:'Financial Implications', label:'Financial Implications' },
+    { key:'Key Considerations',     label:'Key Considerations' },
+  ];
+  let out = '<div class="ai-label"><div class="ai-dot"></div>AI Nonpartisan Breakdown — Never tells how to vote</div><div class="ai-box">';
+  labels.forEach(f => {
+    out += `<div class="ai-field"><div class="ai-field-label">${f.label}</div><div class="ai-field-val">${fields[f.key] || '—'}</div></div>`;
+  });
+  out += '<div style="font-size:11px;color:var(--muted);margin-top:10px;border-top:1px solid var(--mg);padding-top:8px">Official sources only · Never a voting recommendation</div></div>';
+  return out;
 }
 
 function formatAIBallot(text) {
@@ -3494,15 +3505,15 @@ function formatAIBallot(text) {
 }
 
 async function getBillSummary(id) {
-  const bill = BILLS.find(b=>b.id===id);
   const el = document.getElementById('ai-bill-'+id);
   if (!el) return;
   if (aiCache['bill-'+id]) { el.innerHTML = aiCache['bill-'+id]; return; }
   el.innerHTML = '<div class="ai-box"><span class="loading-text">Generating plain-language summary…</span></div>';
-  const p = PRECINCTS.find(x=>x.id===currentPrecinct);
-  const prompt = `You are a nonpartisan civic information tool for Ottawa County, Michigan. Summarize this Michigan Legislature bill in plain language. No legalese. 3-4 sentences. Include one sentence on how it could affect Ottawa County specifically.\n\nBill: ${bill.num} — ${bill.title}\nSponsor: ${bill.sponsor}\nStatus: ${bill.statusLabel}\nDescription: ${bill.desc}\nLocal context: ${bill.localRelevance}`;
-  const result = await callAnthropicAPI(prompt, 700);
-  const htm = '<div class="ai-label"><div class="ai-dot"></div>Plain-Language Summary</div><div class="ai-box">'+result+'</div>';
+
+  await new Promise(r => setTimeout(r, 700 + Math.random() * 500));
+
+  const summary = DEMO_BILL_SUMMARIES[id] || 'This bill is currently before the Michigan Legislature. It would modify existing state law in the area described above. Contact your state representative for the latest status and details.';
+  const htm = '<div class="ai-label"><div class="ai-dot"></div>Plain-Language Summary</div><div class="ai-box">' + summary + '</div>';
   el.innerHTML = htm;
   aiCache['bill-'+id] = htm;
 }
@@ -3534,10 +3545,9 @@ function onDescInput(el) {
 }
 
 async function runDescCivility(text) {
-  const prompt = `Classify this issue report in JSON only.\n\n- "ok": factual, civil, genuine civic issue\n- "warn": mild frustration/profanity but real issue — suggest rewrite\n- "block": threats, hate speech, personal attacks, no civic content\n\nIf warn, provide rewritten version preserving the issue.\nRespond ONLY with: {"status":"ok"|"warn"|"block","reason":"one sentence if warn/block","rewrite":"text if warn, else null"}\n\nDescription: ${text}`;
-  const raw = await callAnthropicAPI(prompt, 200);
-  let result = { status:'ok', reason:'', rewrite:null };
-  try { result = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch(e) {}
+  // Simulate brief check delay
+  await new Promise(r => setTimeout(r, 450 + Math.random() * 300));
+  const result = demoCivilityCheck(text);
   descCivilityStatus = result.status;
   const fb = document.getElementById('civility-feedback');
   const rp = document.getElementById('rewrite-panel');
@@ -3585,8 +3595,7 @@ async function recordStrike(text, severity) {
   userStrikes++;
   const name = currentUser?currentUser.first+' '+currentUser.last:'Anonymous';
   const time  = new Date().toLocaleString();
-  const prompt = `In one sentence, explain why this civic report description is problematic. Direct and clear. No lecturing.\n\nText: ${text}`;
-  const explanation = await callAnthropicAPI(prompt, 100);
+  const explanation = 'The description contains language that does not meet community standards for civic issue reporting. Please revise to focus on the specific issue and location without personal characterizations.';
   const fb  = document.getElementById('civility-feedback');
   const badge = document.getElementById('civility-strike-badge');
   if (userStrikes===1) {
@@ -3683,6 +3692,25 @@ function openRelayModal(issueId) {
 }
 
 function closeRelayModal() { document.getElementById('relay-modal').classList.remove('show'); }
+
+async function generateRelayDraft() {
+  const official = document.getElementById('relay-official-select').value;
+  const issue    = (ISSUE_QUEUE[currentPrecinct]||[]).find(i=>i.id===activeRelayIssueId);
+  if (!issue || !official) return;
+  const btn = document.getElementById('relay-draft-btn');
+  btn.textContent = '…Generating'; btn.disabled = true;
+  const draft = demoForwardDraft(issue, official);
+  document.getElementById('relay-note').value = draft;
+  document.getElementById('relay-draft-note').style.display = '';
+  btn.textContent = '✦ Regenerate Draft'; btn.disabled = false;
+}
+
+function clearRelayDraft() {
+  document.getElementById('relay-note').value = '';
+  document.getElementById('relay-draft-note').style.display = 'none';
+  const btn = document.getElementById('relay-draft-btn');
+  if (btn) { btn.textContent = '✦ Generate AI Draft'; btn.disabled = false; }
+}
 
 function confirmRelay() {
   const official = document.getElementById('relay-official-select').value;
@@ -4171,23 +4199,183 @@ function showSubmitConfirm(icon, title, sub, body) {
 function closeConfirmModal() { document.getElementById('confirm-modal').classList.remove('show'); }
 
 // ════════════════════════════════════════════════════════════════════════
-// ANTHROPIC API
+// DEMO AI ENGINE — V16
+// Static responses for all 6 AI call types.
+// Replaces live Anthropic API calls so the demo works fully in the browser.
+// In the production Bubble.io build all calls are server-side via API.
 // ════════════════════════════════════════════════════════════════════════
 
-async function callAnthropicAPI(prompt, maxTokens) {
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:maxTokens, messages:[{role:'user',content:prompt}] })
-    });
-    const data = await res.json();
-    if (data.content && data.content[0]) return data.content[0].text;
-    if (data.error) return `[API: ${data.error.message} — In the live Bubble.io build, all AI calls are made server-side using the ANTHROPIC_API_KEY environment variable.]`;
-    return '[No response received]';
-  } catch(e) {
-    return `[AI unavailable in standalone demo — browser security blocks direct API calls. In the live Bubble.io app, all AI calls are server-side. The AI would return a structured, nonpartisan response here.]`;
+// ── MEETING AGENDA SUMMARIES ─────────────────────────────────────────
+const DEMO_MEETING_SUMMARIES = {
+  'm1': `The Spring Lake Township Board will meet on April 14 at 7:00 PM at Township Hall on S. Eaton St. The agenda covers the quarterly budget review, an update from the public works department on road and infrastructure projects, and a general public comment period. Residents who want to speak to the board about any township matter are welcome — this is one of the best opportunities for direct resident input. The meeting is open to the public and no registration is required to attend or comment.`,
+  'm2': `The Ottawa County Board of Commissioners meets April 8 at 10:00 AM at the Fillmore Complex in West Olive. The agenda includes the county administrator's quarterly report, discussion of a proposed infrastructure millage, and amendments to the Q2 2026 budget. This meeting is livestreamed and a public comment period is included. The infrastructure millage discussion may be particularly relevant to Spring Lake Township residents, as it could affect road and utility funding across the county.`,
+  'm3': `The Spring Lake Area Schools Board meets April 21 at 6:30 PM at Spring Lake High School on N. Jackson St. The agenda includes updates from the superintendent, a facilities review covering building conditions and deferred maintenance, the first reading of the 2026-27 budget, and a curriculum report. The first reading of the budget is significant — it sets the framework for next year's staffing, programs, and school operations. Residents and parents are encouraged to attend; public comment is open.`,
+  'm4': `The Michigan House of Representatives is in session April 9 at 10:00 AM at the State Capitol in Lansing. The session includes a second reading of HB 4021 (the School Funding Equity Act), which would reduce per-pupil spending disparities between districts — including Spring Lake Area Schools. SB 312 (Local Road Funding Allocation) is also on the agenda, which could direct more state transportation dollars to county road commissions like Ottawa County's. Committee assignments will also be made. The session is livestreamed at legislature.mi.gov.`,
+  'm5': `The Grand Haven Township Board meets April 16 at 7:00 PM at Township Hall on 168th Ave. The agenda covers several zoning variance requests from property owners seeking exceptions to current zoning rules, road maintenance updates for township roads, and a public comment period. Zoning variances are decisions that affect what can be built and where in the township — residents who live near the affected parcels may want to attend. Public comment is open.`,
+  'm6': `The Ottawa County Planning Commission meets April 23 at 7:00 PM at the Fillmore Complex in West Olive. The agenda includes rezoning applications from landowners requesting changes to their property's designated land use, proposed amendments to the county master plan, and reviews of pending development projects. Planning commission decisions shape what gets built in Ottawa County for years to come. Residents with concerns about development or land use in their area can speak during public comment.`,
+};
+
+// ── BALLOT ITEM BREAKDOWNS ────────────────────────────────────────────
+const DEMO_BALLOT_BREAKDOWNS = {
+  'b1': {
+    'What It Does': 'This proposal renews an existing property tax of 1.0 mill for five years (2026–2031) to fund road resurfacing and maintenance within Spring Lake Township. This is a renewal of a millage that voters previously approved — it does not raise the rate, it continues it.',
+    'Who It Impacts': 'All property owners in Spring Lake Township pay this millage. A home with a taxable value of $150,000 would pay approximately $150 per year. Renters may see indirect effects if landlords adjust rents to reflect property tax changes.',
+    'Financial Implications': 'At 1.0 mill, this generates roughly $1.2–$1.5 million per year for the township road fund, based on Ottawa County assessor estimates. These funds can only be used for road maintenance and resurfacing — they cannot be redirected to other township purposes.',
+    'Key Considerations': 'Proponents argue that local road maintenance funding is more predictable and community-controlled than relying on state allocations. Those who oppose it note that property owners are already subject to multiple millages and that state road funding should fill this role. This measure does not raise taxes — it maintains the current rate.',
+  },
+  'b2': {
+    'What It Does': 'This proposal creates a new countywide property tax of 0.25 mill for 10 years to fund the maintenance, improvement, and potential expansion of Ottawa County parks, trails, and recreational facilities. This is a new millage, not a renewal.',
+    'Who It Impacts': 'All Ottawa County property owners would pay this millage. A home with a taxable value of $150,000 would pay approximately $37.50 per year. All county residents — including non-property owners — would have access to the parks and facilities funded.',
+    'Financial Implications': 'At 0.25 mill countywide, this is projected to raise approximately $4–$5 million annually. Ottawa County currently operates 42 parks and facilities. The funds would be administered by the Ottawa County Parks & Recreation department and subject to annual audits.',
+    'Key Considerations': 'Supporters point to growing recreational demand in Ottawa County and deferred maintenance at existing parks. Critics note this is an additional tax burden and question whether existing county budget resources should be redirected before asking property owners for more. The 10-year term is longer than many millages, which typically run 5 years.',
+  },
+  'b3': {
+    'What It Does': 'This statewide constitutional amendment would embed stronger environmental protection standards for Great Lakes water quality directly into the Michigan Constitution, making them harder for future legislatures to weaken or remove through ordinary legislation.',
+    'Who It Impacts': 'All Michigan residents would be affected, as would businesses and industries that operate near or draw from Great Lakes watersheds. Ottawa County sits on the eastern shore of Lake Michigan — local wells, beaches, and fisheries are connected to Great Lakes water quality.',
+    'Financial Implications': 'Constitutional amendments do not carry direct budget costs, but implementing stricter standards may require state agency investment and could affect permitting processes for development and agricultural operations near waterways. Specific fiscal impact depends on how the Legislature implements any new requirements.',
+    'Key Considerations': 'Supporters argue that constitutional protection provides durable safeguards against political shifts and industrial pressure. Opponents argue that policy decisions of this kind belong in legislation, not the constitution, where they are harder to adjust as circumstances change. This measure does not itself create regulations — it sets a floor that future laws must meet.',
+  },
+};
+
+// ── BILL PLAIN-LANGUAGE SUMMARIES ────────────────────────────────────
+const DEMO_BILL_SUMMARIES = {
+  'bill1': `House Bill 4021 would revise Michigan's school funding formula to reduce the spending gap between lower-funded and higher-funded districts. Under the current formula, per-pupil spending varies significantly across the state depending on local property values and voter-approved millages. This bill would increase the base per-pupil foundation allowance and add a weighted factor for districts with lower tax capacity. For Spring Lake Area Schools, which currently receives below the state average in per-pupil funding, this bill could mean an additional $340–$520 per student each year — money that districts typically apply to staffing, programs, and classroom resources. The bill is currently in the House Education Committee and has not yet been scheduled for a floor vote.`,
+  'bill2': `Senate Bill 312 would redirect a portion of the Michigan Transportation Fund — money collected from gas taxes and vehicle registration fees — directly to county road commissions for local road maintenance. Currently, a larger share flows to the Michigan Department of Transportation for state and federal highways, leaving county road agencies dependent on local millages and competitive grant applications to maintain local roads. Ottawa County Road Commission manages over 900 miles of roads, and additional predictable state funding could accelerate resurfacing on corridors like M-104 that serve multiple Spring Lake area precincts. The bill has been introduced in the Senate and referred to the Appropriations Committee — no hearing has been scheduled yet.`,
+};
+
+// ── OFFICE EXPLAINERS ─────────────────────────────────────────────────
+const DEMO_OFFICE_EXPLAINERS = {
+  'spring-lake-twp-trustee': {
+    'What This Office Does': 'A Spring Lake Township Trustee is one of four elected members of the Spring Lake Township Board, the governing body for the township. Trustees vote on the township budget, local ordinances, millage proposals, and township land use policy. They serve four-year terms and are part-time elected officials who represent the entire township — not a specific district within it.',
+    'Decisions It Makes': 'Trustees vote on the township\'s annual budget and any amendments to it, approve or reject proposed ordinances (local rules covering things like zoning, noise, and property maintenance), decide whether to place millage proposals on the ballot for residents to vote on, and set policy for township-owned facilities and services including roads, parks, and the fire department.',
+    'How It Affects Your Daily Life': 'Township trustees make decisions that directly affect road conditions in your neighborhood, the quality of local parks and recreational spaces, property tax rates for township-specific millages, and the rules about what can be built near your home. The township board is the closest level of elected government to most Spring Lake residents — board members often know their constituents personally and respond to resident concerns more directly than county or state officials.',
+    'Term and Compensation': 'Trustees serve 4-year terms and are elected in partisan primary elections in August of even-numbered years, with the general election in November. The position is part-time and carries a small stipend set by the board — it is a civic service role, not a primary income.',
+  },
+  'spring-lake-twp-supervisor': {
+    'What This Office Does': 'The Spring Lake Township Supervisor is the chief executive of the township — the top elected official at the local level. The Supervisor presides over all township board meetings, signs contracts on behalf of the township, represents the township in legal and intergovernmental matters, and is responsible for property assessment within the township. There is one Supervisor seat, elected township-wide.',
+    'Decisions It Makes': 'The Supervisor sets the agenda for board meetings, casts a vote on all board actions, and serves as the township\'s official representative in dealings with Ottawa County, state agencies, and other municipalities. The Supervisor also oversees the township\'s property assessing function — determining taxable property values that form the basis of all local millage calculations.',
+    'How It Affects Your Daily Life': 'The Supervisor\'s leadership shapes how effectively the township operates day-to-day — from how quickly road repair requests are processed to how the township communicates with residents. The Supervisor is typically the most accessible elected official for residents with concerns that cross departmental lines or require executive attention.',
+    'Term and Compensation': 'The Supervisor serves a 4-year term and is elected in the same cycle as trustees. The position carries a stipend set by the board and is formally a part-time role, though many supervisors devote significant time to the job in practice.',
+  },
+  'ottawa-county-commissioner-d2': {
+    'What This Office Does': 'An Ottawa County Commissioner represents one of the county\'s geographic districts on the Ottawa County Board of Commissioners, which is the governing body for Ottawa County. District 2 covers Spring Lake Township and Grand Haven Township. The Board sets the county budget, levies countywide millages, oversees county departments, and passes county ordinances. Commissioners serve 2-year terms.',
+    'Decisions It Makes': 'Commissioners vote on the county\'s annual budget (roughly $400–$500 million), set county tax rates and millage proposals, oversee the county\'s road commission, health department, sheriff\'s office, parks system, and court facilities. They also make appointments to county boards and commissions and decide on major contracts and capital projects.',
+    'How It Affects Your Daily Life': 'County government is responsible for roads outside township boundaries, the county health department and public health services, the county parks system including Grand Haven State Park coordination, property records and elections administration, and the county jail and court system. Ottawa County is one of Michigan\'s fastest-growing counties — commissioner decisions about development, infrastructure, and services shape the trajectory of the whole region.',
+    'Term and Compensation': 'Commissioners serve 2-year terms and face election every even-numbered year. The position carries a part-time stipend plus a per-meeting rate. District 2 typically has a competitive primary and general election given the population density of Spring Lake and Grand Haven townships.',
+  },
+};
+
+// ── CIVILITY CHECK STATIC RESPONSES ──────────────────────────────────
+// In demo mode, all well-formed descriptions return 'ok'.
+// We simulate warn/block only when the text contains obvious red-flag words.
+function demoCivilityCheck(text) {
+  const lower = text.toLowerCase();
+  const blockWords = ['kill', 'threat', 'attack', 'hate', 'racist', 'idiot', 'stupid', 'moron', 'damn you', 'go to hell'];
+  const warnWords  = ['terrible', 'incompetent', 'useless', 'lazy', 'pathetic', 'ridiculous', 'waste'];
+  if (blockWords.some(w => lower.includes(w))) {
+    return { status:'block', reason:'This description contains language that cannot be submitted. Please describe the civic issue factually without personal attacks or threatening language.', rewrite: null };
   }
+  if (warnWords.some(w => lower.includes(w))) {
+    const cleaned = text.replace(new RegExp(warnWords.join('|'), 'gi'), '').replace(/\s{2,}/g, ' ').trim();
+    const rewrite = cleaned + (cleaned.endsWith('.') ? '' : '.') + ' Requesting attention from the appropriate township or county department.';
+    return { status:'warn', reason:'This description includes evaluative language that may not meet community standards. A suggested rewrite is below.', rewrite: rewrite };
+  }
+  return { status:'ok', reason:'', rewrite: null };
+}
+
+// ── ISSUE FORWARD DRAFTS ──────────────────────────────────────────────
+function demoForwardDraft(issue, officialName) {
+  const cat = issue.category || 'Civic Issue';
+  const loc = issue.location || 'location as described';
+  const desc = issue.desc || '';
+  return `Dear ${officialName.split('—')[0].trim()},
+
+I am writing on behalf of a resident in Spring Lake Township Precinct 5 regarding a ${cat.toLowerCase()} concern at ${loc}.
+
+The resident reported: "${desc}"
+
+This issue has been submitted through CivicCircle, a civic engagement platform connecting Spring Lake Township residents with their elected representatives. The resident has asked that this matter be directed to the appropriate department for review.
+
+If you are not the correct contact for this issue, I would appreciate a referral to the right office. I am happy to provide any additional information needed.
+
+Thank you for your service to our community.
+
+Kurt VanOordt
+Spring Lake Township Precinct 5 Delegate
+Submitted via CivicCircle`;
+}
+
+// ── MAIN DEMO API ROUTER ──────────────────────────────────────────────
+// Intercepts all callAnthropicAPI calls and returns static demo data.
+// A brief realistic delay is added so the loading state is visible.
+
+async function callAnthropicAPI(prompt, maxTokens) {
+  // Simulate a realistic API response time (600-1200ms)
+  await new Promise(r => setTimeout(r, 600 + Math.random() * 600));
+
+  // ── MEETING SUMMARY ─────────────────────────────────────────────
+  if (prompt.includes('Summarize this public meeting agenda')) {
+    const match = prompt.match(/Meeting: ([^\n]+)/);
+    const title = match ? match[1] : '';
+    for (const [id, summary] of Object.entries(DEMO_MEETING_SUMMARIES)) {
+      const m = MEETINGS.find(x => x.id === id);
+      if (m && title.includes(m.title.substring(0, 20))) return summary;
+    }
+    return 'This meeting covers regular board business including budget review and public comment. Residents are welcome to attend and speak during the public comment period.';
+  }
+
+  // ── BALLOT EXPLANATION ───────────────────────────────────────────
+  if (prompt.includes('ballot item') || prompt.includes('WHAT IT DOES:')) {
+    for (const [id, fields] of Object.entries(DEMO_BALLOT_BREAKDOWNS)) {
+      const item = BALLOT.find(b => b.id === id);
+      if (item && prompt.includes(item.title.substring(0, 20))) {
+        return `WHAT IT DOES:\n${fields['What It Does']}\n\nWHO IT IMPACTS:\n${fields['Who It Impacts']}\n\nFINANCIAL IMPLICATIONS:\n${fields['Financial Implications']}\n\nKEY CONSIDERATIONS:\n${fields['Key Considerations']}`;
+      }
+    }
+    // fallback
+    return `WHAT IT DOES:\nThis ballot item asks voters to make a decision about local government finances or policy.\n\nWHO IT IMPACTS:\nAll registered voters in the applicable jurisdiction are eligible to vote on this measure. Property owners may see direct financial effects.\n\nFINANCIAL IMPLICATIONS:\nFiscal impact depends on the specific millage rate and the local assessed property value base. Details are available from the county clerk's office.\n\nKEY CONSIDERATIONS:\nThis is a factual summary only. CivicCircle does not recommend how to vote on any ballot item.`;
+  }
+
+  // ── BILL SUMMARY ─────────────────────────────────────────────────
+  if (prompt.includes('Michigan Legislature bill') || prompt.includes('plain language')) {
+    for (const [id, summary] of Object.entries(DEMO_BILL_SUMMARIES)) {
+      const bill = BILLS.find(b => b.id === id);
+      if (bill && prompt.includes(bill.num)) return summary;
+    }
+    return 'This bill is currently before the Michigan Legislature. It would modify existing state law in the area described above. The bill\'s local relevance to Ottawa County depends on how final language is enacted. Contact your state representative for more information.';
+  }
+
+  // ── OFFICE EXPLAINER ─────────────────────────────────────────────
+  if (prompt.includes('elected office') && prompt.includes('WHAT THIS OFFICE DOES:')) {
+    for (const [id, fields] of Object.entries(DEMO_OFFICE_EXPLAINERS)) {
+      const office = OFFICES[id];
+      if (office && prompt.includes(office.title)) {
+        return `WHAT THIS OFFICE DOES:\n${fields['What This Office Does']}\n\nDECISIONS IT MAKES:\n${fields['Decisions It Makes']}\n\nHOW IT AFFECTS YOUR DAILY LIFE:\n${fields['How It Affects Your Daily Life']}\n\nTERM AND COMPENSATION:\n${fields['Term and Compensation']}`;
+      }
+    }
+    return 'WHAT THIS OFFICE DOES:\nThis elected official serves on a local governing board and votes on budgets, ordinances, and public policy.\n\nDECISIONS IT MAKES:\nThe officeholder votes on spending priorities, local regulations, and service delivery for the jurisdiction.\n\nHOW IT AFFECTS YOUR DAILY LIFE:\nDecisions made in this office affect road maintenance, local taxes, zoning rules, and public services in your community.\n\nTERM AND COMPENSATION:\nThis is an elected part-time position. Term length and compensation are set by local governing documents.';
+  }
+
+  // ── CIVILITY CHECK ───────────────────────────────────────────────
+  if (prompt.includes('Classify this issue report') || prompt.includes('"status"')) {
+    const textMatch = prompt.match(/Description: (.+)$/s);
+    const text = textMatch ? textMatch[1].trim() : '';
+    const result = demoCivilityCheck(text);
+    return JSON.stringify(result);
+  }
+
+  // ── STRIKE EXPLANATION ───────────────────────────────────────────
+  if (prompt.includes('explain why this civic report description is problematic')) {
+    return 'The description contains language that does not meet community standards for civic issue reporting. Please revise to focus on the factual issue and location without personal characterizations.';
+  }
+
+  // ── ISSUE FORWARD DRAFT ──────────────────────────────────────────
+  if (prompt.includes('forward') || prompt.includes('official') || prompt.includes('relay')) {
+    return 'Draft email generated. Review and edit before sending.';
+  }
+
+  // ── FALLBACK ─────────────────────────────────────────────────────
+  return '[Demo mode — AI response not available for this prompt type. In the live Bubble.io app, all AI calls run server-side via the Anthropic API.]';
 }
 
 // ════════════════════════════════════════════════════════════════════════
